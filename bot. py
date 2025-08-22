@@ -1,0 +1,102 @@
+import os
+import time
+import requests
+import pandas as pd
+import yfinance as yf
+
+# Telegram credentials (Railway Variables se)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# Interval (default 15m)
+INTERVAL = os.getenv("INTERVAL", "15m")
+
+# Binance symbols (default BTC, ETH)
+BINANCE_SYMBOLS = {
+    "BTCUSDT": "Bitcoin",
+    "ETHUSDT": "Ethereum"
+}
+
+# Yahoo Finance symbols (default Gold, Oil)
+YF_SYMBOLS = {
+    "GC=F": "Gold",
+    "CL=F": "US_Oil"
+}
+
+def send_telegram_message(message: str):
+    """Send message to Telegram bot"""
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": message}
+    try:
+        requests.post(url, data=payload)
+    except Exception as e:
+        print("Telegram error:", e)
+
+def fetch_binance(symbol, interval="15m", limit=100):
+    """Fetch historical data from Binance"""
+    url = f"https://api.binance.com/api/v3/klines"
+    params = {"symbol": symbol, "interval": interval, "limit": limit}
+    try:
+        data = requests.get(url, params=params).json()
+        df = pd.DataFrame(data, columns=[
+            "time","o","h","l","c","v","close_time","qv","trades","tb_base","tb_quote","ignore"
+        ])
+        df["c"] = df["c"].astype(float)
+        return df
+    except Exception as e:
+        print("Binance error:", e)
+        return None
+
+def fetch_yahoo(symbol, interval="15m", limit=100):
+    """Fetch historical data from Yahoo Finance"""
+    try:
+        df = yf.download(symbol, period="7d", interval=interval)
+        df = df.tail(limit)
+        df["Close"] = df["Close"].astype(float)
+        return df
+    except Exception as e:
+        print("Yahoo error:", e)
+        return None
+
+def check_signal(prices, name):
+    """Check EMA 9/30 crossover"""
+    if prices is None or len(prices) < 30:
+        return None
+
+    prices["EMA9"] = prices["c"].ewm(span=9).mean() if "c" in prices else prices["Close"].ewm(span=9).mean()
+    prices["EMA30"] = prices["c"].ewm(span=30).mean() if "c" in prices else prices["Close"].ewm(span=30).mean()
+
+    last, prev = prices.iloc[-1], prices.iloc[-2]
+
+    if prev.EMA9 < prev.EMA30 and last.EMA9 > last.EMA30:
+        return f"📈 BUY Signal - {name} (EMA9 crossed above EMA30)"
+    elif prev.EMA9 > prev.EMA30 and last.EMA9 < last.EMA30:
+        return f"📉 SELL Signal - {name} (EMA9 crossed below EMA30)"
+    return None
+
+def main():
+    send_telegram_message("🚀 EMA Bot Started on Railway...")
+
+    while True:
+        try:
+            # Binance symbols
+            for sym, name in BINANCE_SYMBOLS.items():
+                df = fetch_binance(sym, INTERVAL)
+                signal = check_signal(df, name)
+                if signal:
+                    send_telegram_message(signal)
+
+            # Yahoo symbols
+            for sym, name in YF_SYMBOLS.items():
+                df = fetch_yahoo(sym, INTERVAL)
+                signal = check_signal(df, name)
+                if signal:
+                    send_telegram_message(signal)
+
+        except Exception as e:
+            print("Loop error:", e)
+
+        time.sleep(60)
+
+if __name__ == "__main__":
+    main()
