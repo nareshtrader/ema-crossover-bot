@@ -1,0 +1,17 @@
+# EMA Crossover Bot (Binance + Yahoo Finance)
+
+🚀 EMA 9/30 crossover strategy alerts on **Telegram**.  
+Supports **Bitcoin, Ethereum (Binance)** and **Gold, US Oil (Yahoo Finance)**.
+
+## Deployment on Railway
+1. Fork/clone this repo
+2. Go to [Railway.app](https://railway.app) → New Project → Deploy from GitHub
+3. Add environment variables:
+   - `TELEGRAM_TOKEN` = your BotFather token
+   - `TELEGRAM_CHAT_ID` = your Telegram chat id
+   - `INTERVAL` = 15m (default) / 5m / 1h etc.
+4. Deploy → Done ✅
+
+## Alerts
+- 📈 BUY when EMA9 crosses above EMA30
+- 📉 SELL when EMA9 crosses below EMA30
